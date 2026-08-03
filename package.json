@@ -1,0 +1,16 @@
+{
+  "name": "food-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "个人美食地图：上传食物照片，在地图上记录每一餐",
+  "scripts": {
+    "install:all": "npm install --prefix backend && npm install --prefix frontend",
+    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "test": "npm test --prefix backend",
+    "seed": "npm run seed --prefix backend",
+    "build": "npm run build --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.4"
+  }
+}
