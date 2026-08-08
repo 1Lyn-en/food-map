@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { X, Plus, MapPin, Star, ImagePlus, Trash2, GripVertical, Navigation, Loader } from 'lucide-react';
+import { X, Plus, MapPin, Star, ImagePlus, Trash2, GripVertical, Navigation, Loader, Lock, Users } from 'lucide-react';
 import { useStore } from '../stores';
 import { api } from '../api';
 
@@ -129,14 +129,14 @@ function isDraftEmpty(d) {
     d.lng == null && d.lat == null && d.longitude == null && d.latitude == null;
 }
 
-export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyword, suggestions, setSuggestions, onPickTip, reverseGeocode, onMapSetPoint, saveFormRef }) {
+export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyword, suggestions, setSuggestions, addrFocus, setAddrFocus, pickMode, onStartPick, onPickPoint, geocoding, onPickTip, onMapSetPoint, saveFormRef }) {
   const { state, dispatch, refresh, refreshTags, notify } = useStore();
   const entry = state.draft;
   const [draft, setDraft] = useState({
     id: null, dish_name: '', restaurant_name: '', address_text: '',
     lng: null, lat: null, meal_type: '', price_per_person: '',
     rating: null, notes: '', is_favorite: false,
-    tag_ids: [], meal_date: ''
+    tag_ids: [], meal_date: '', visibility: 'private'
   });
   const [showTagPicker, setShowTagPicker] = useState(false);
   const [newTagName, setNewTagName] = useState('');
@@ -155,38 +155,55 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
   const savedRef = useRef(false);
   const initializedRef = useRef(false);
   const everSavedDraftRef = useRef(false);
+  const didInitRef = useRef(false);
 
   const openEntry = state.draft;
 
   useEffect(() => {
-    if (openEntry) {
-      setDraft({
-        id: openEntry.id || null,
-        dish_name: openEntry.dish_name || '',
-        restaurant_name: openEntry.restaurant_name || '',
-        address_text: openEntry.address_text || '',
-        lng: openEntry.longitude || null,
-        lat: openEntry.latitude || null,
-        meal_type: openEntry.meal_type || '',
-        price_per_person: openEntry.price_per_person ? String(openEntry.price_per_person) : '',
-        rating: openEntry.rating || null,
-        notes: openEntry.notes || '',
-        is_favorite: Boolean(openEntry.is_favorite),
-        tag_ids: (openEntry.tags || []).map((t) => t.id),
-        meal_date: openEntry.meal_date || ''
-      });
-      const imgs = (openEntry.images || []).map((img) => ({
-        key: `img-${img.id}`,
-        kind: 'existing',
-        img,
-        url: img.thumbnail_path || img.image_path
-      }));
-      setAllImages(imgs);
-      setCoverKey(imgs.length > 0 ? imgs[0].key : null);
-      setDeletedImgIds(new Set());
-      setExifCoords(null);
-    }
+    if (!openEntry || didInitRef.current) return;
+    didInitRef.current = true;
+    setDraft({
+      id: openEntry.id || null,
+      dish_name: openEntry.dish_name || '',
+      restaurant_name: openEntry.restaurant_name || '',
+      address_text: openEntry.address_text || '',
+      lng: openEntry.lng ?? openEntry.longitude ?? null,
+      lat: openEntry.lat ?? openEntry.latitude ?? null,
+      meal_type: openEntry.meal_type || '',
+      price_per_person: openEntry.price_per_person ? String(openEntry.price_per_person) : '',
+      rating: openEntry.rating || null,
+      notes: openEntry.notes || '',
+      is_favorite: Boolean(openEntry.is_favorite),
+      tag_ids: (openEntry.tags || []).map((t) => t.id),
+      meal_date: openEntry.meal_date || '',
+      visibility: openEntry.visibility === 'group' ? 'group' : 'private'
+    });
+    const imgs = (openEntry.images || []).map((img) => ({
+      key: `img-${img.id}`,
+      kind: 'existing',
+      img,
+      url: img.thumbnail_path || img.image_path
+    }));
+    setAllImages(imgs);
+    setCoverKey(imgs.length > 0 ? imgs[0].key : null);
+    setDeletedImgIds(new Set());
+    setExifCoords(null);
   }, [openEntry]);
+
+  // Merge coordinate/address updates from map clicks & place search into the local
+  // draft without wiping fields the user has already typed.
+  useEffect(() => {
+    if (!state.draft) return;
+    const lng = state.draft.lng ?? state.draft.longitude ?? null;
+    const lat = state.draft.lat ?? state.draft.latitude ?? null;
+    if (lng == null && lat == null) return;
+    setDraft((d) => ({
+      ...d,
+      lng,
+      lat,
+      address_text: state.draft.address_text ?? d.address_text
+    }));
+  }, [state.draft]);
 
   // Register save handler for Ctrl+S shortcut
   React.useEffect(() => {
@@ -319,15 +336,9 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
     setCoverKey(key);
   };
 
-  const handleExifFill = async () => {
-    if (!exifCoords || !reverseGeocode) return;
-    const { lng, lat } = exifCoords;
-    setDraft((d) => ({ ...d, lng, lat, address_text: '' }));
-    onMapSetPoint(lng, lat);
-    try {
-      const addr = await reverseGeocode(lng, lat);
-      setDraft((d) => ({ ...d, lng, lat, address_text: addr }));
-    } catch (_) {}
+  const handleExifFill = () => {
+    if (!exifCoords) return;
+    onPickPoint(exifCoords.lng, exifCoords.lat);
     setExifCoords(null);
   };
 
@@ -335,14 +346,9 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
     if (!('geolocation' in navigator)) { notify('浏览器不支持定位功能'); return; }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         const { longitude: lng, latitude: lat } = pos.coords;
-        setDraft((d) => ({ ...d, lng, lat, address_text: '' }));
-        onMapSetPoint(lng, lat);
-        try {
-          const addr = await reverseGeocode(lng, lat);
-          setDraft((d) => ({ ...d, lng, lat, address_text: addr }));
-        } catch (_) {}
+        onPickPoint(lng, lat);
         setLocating(false);
       },
       (err) => {
@@ -424,6 +430,10 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
     form.append('meal_date', draft.meal_date || '');
     form.append('tag_ids', draft.tag_ids.join(','));
     form.append('deleted_image_ids', Array.from(deletedImgIds).join(','));
+    if (state.user) form.append('user_id', state.user.id);
+    const shareToGroup = draft.visibility === 'group' && state.currentGroup;
+    form.append('visibility', shareToGroup ? 'group' : 'private');
+    if (shareToGroup) form.append('group_id', state.currentGroup.id);
     allImages.filter((it) => it.kind === 'new').forEach((it) => form.append('images', it.file));
 
     setSaving(true);
@@ -474,7 +484,7 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
     }
   };
 
-  return React.createElement('div', { className: 'modal-overlay', onClick: (e) => { if (e.target === e.currentTarget) onClose(); } },
+  return React.createElement('div', { className: 'modal-overlay map-picker' + (pickMode ? ' hidden' : ''), onClick: (e) => { if (e.target === e.currentTarget) onClose(); } },
     React.createElement('div', { className: 'modal', role: 'dialog' },
       React.createElement('div', { className: 'modal-header' },
         React.createElement('h2', null, draft.id ? '编辑记录' : '新增记录'),
@@ -551,26 +561,28 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
               React.createElement(MapPin, { size: 16 }),
               React.createElement('input', { value: keyword, disabled: !hasKey,
                 placeholder: hasKey ? '输入地址关键词搜索' : '需配置高德 Key',
+                onFocus: () => setAddrFocus(true),
+                onBlur: () => setAddrFocus(false),
                 onChange: (e) => setKeyword(e.target.value) }),
-              React.createElement('button', { className: 'locate-btn', disabled: !hasKey || !amapReady || locating,
+              React.createElement('button', { className: 'locate-btn', disabled: !hasKey || !amapReady || locating || geocoding,
                 onClick: handleLocateMe, title: '定位我', type: 'button' },
-                locating ? React.createElement(Loader, { size: 14, className: 'spin' }) : React.createElement(Navigation, { size: 14 })
+                (locating || geocoding) ? React.createElement(Loader, { size: 14, className: 'spin' }) : React.createElement(Navigation, { size: 14 })
               ),
               keyword ? React.createElement('button', { className: 'clear-btn', onClick: () => { setKeyword(''); setSuggestions([]); } },
                 React.createElement(X, { size: 14 })
               ) : null
             ),
-            suggestions.length > 0 && React.createElement('ul', { className: 'suggest' },
+            addrFocus && suggestions.length > 0 && React.createElement('ul', { className: 'suggest' },
               suggestions.slice(0, 8).map((tip, i) =>
-                React.createElement('li', { key: `${tip.id}-${i}`, onClick: () => onPickTip(tip) },
+                React.createElement('li', { key: `${tip.id}-${i}`, onMouseDown: (e) => e.preventDefault(), onClick: () => onPickTip(tip) },
                   React.createElement('b', null, tip.name),
                   React.createElement('span', null, [tip.district, tip.address].filter(Boolean).join(' '))
                 )
               )
             ),
-            exifCoords && !draft.lng && reverseGeocode && React.createElement('div', { className: 'exif-hint' },
+            exifCoords && !draft.lng && onPickPoint && React.createElement('div', { className: 'exif-hint' },
               '📷 照片含位置信息，',
-              React.createElement('button', { className: 'exif-link', onClick: handleExifFill, type: 'button' },
+              React.createElement('button', { className: 'exif-link', onClick: handleExifFill, type: 'button', disabled: geocoding },
                 '填充位置'
               )
             )
@@ -581,7 +593,9 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
           React.createElement('span', { className: 'coord-label' }, React.createElement(MapPin, { size: 14 }), ' 地图选点'),
           draft.lng != null ? React.createElement('span', { className: 'coord-value' },
             `${draft.lng.toFixed(6)}, ${draft.lat.toFixed(6)}`)
-            : React.createElement('span', { className: 'coord-value muted' }, hasKey ? '未选点（搜索地址或点击地图）' : '需配置 Key')
+            : React.createElement('span', { className: 'coord-value muted' }, hasKey ? '未选点（搜索地址或点击地图）' : '需配置 Key'),
+          React.createElement('button', { className: 'coord-pick-btn', type: 'button', onClick: onStartPick },
+            React.createElement(MapPin, { size: 13 }), draft.lng != null ? '重新选点' : '选点')
         ),
 
         // Details row
@@ -641,6 +655,33 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
                 onChange: (e) => setNewTagName(e.target.value),
                 onKeyDown: (e) => { if (e.key === 'Enter') createTag(); } }),
               React.createElement('button', { className: 'primary-btn small', onClick: createTag }, '创建')
+            )
+          )
+        ),
+
+        // Visibility (only when inside a room)
+        state.currentGroup && React.createElement('div', { className: 'form-label-wrap' },
+          React.createElement('label', { className: 'section-label' }, '可见性'),
+          React.createElement('div', { className: 'visibility-options' },
+            React.createElement('label', { className: 'radio-option' },
+              React.createElement('input', {
+                type: 'radio', name: 'entry-visibility',
+                checked: draft.visibility !== 'group',
+                onChange: () => setDraft((d) => ({ ...d, visibility: 'private' }))
+              }),
+              React.createElement(Lock, { size: 14 }),
+              ' 仅自己可见'
+            ),
+            React.createElement('label', { className: 'radio-option' },
+              React.createElement('input', {
+                type: 'radio', name: 'entry-visibility',
+                checked: draft.visibility === 'group',
+                onChange: () => setDraft((d) => ({ ...d, visibility: 'group' }))
+              }),
+              React.createElement(Users, { size: 14 }),
+              ' 共享到「',
+              state.currentGroup.name,
+              '」'
             )
           )
         ),

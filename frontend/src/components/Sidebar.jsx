@@ -1,7 +1,22 @@
 import React from 'react';
-import { Plus, Utensils, Star, Trash2, RotateCcw, X, CheckSquare } from 'lucide-react';
-import { useStore } from '../stores';
+import { Plus, Utensils, Star, Trash2, RotateCcw, X, CheckSquare, Settings, Users, Copy, Check, Lock, LogOut } from 'lucide-react';
+import { useStore, getOrCreateUserId } from '../stores';
 import { api } from '../api';
+import UserProfileModal from './UserProfileModal';
+import SharePanel from './SharePanel';
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+}
 
 function formatTime(value) {
   if (!value) return '';
@@ -32,19 +47,80 @@ function HighlightText({ text, keyword }) {
 }
 
 export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry }) {
-  const { state, refresh, notify, dispatch } = useStore();
+  const { state, refresh, notify, dispatch, saveUser, setCurrentGroup, setViewMode, loadGroups } = useStore();
   const [multiSelectMode, setMultiSelectMode] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState(new Set());
   const [showTrash, setShowTrash] = React.useState(false);
   const [trashEntries, setTrashEntries] = React.useState([]);
   const [trashCount, setTrashCount] = React.useState(0);
+  const [showUserProfile, setShowUserProfile] = React.useState(false);
+  const [showShare, setShowShare] = React.useState(false);
+  const [roomCopied, setRoomCopied] = React.useState(false);
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
+
+  const user = state.user;
+  const currentGroup = state.currentGroup;
+
+  React.useEffect(() => {
+    if (!state.user) setShowOnboarding(true);
+  }, [state.user]);
+
+  // When onboarding completes, state.user transitions null -> set. Run the
+  // data fetches here (not in handleOnboard) so they use the fresh closures
+  // that already see the new identity.
+  const prevUserRef = React.useRef(state.user);
+  React.useEffect(() => {
+    const hadUser = Boolean(prevUserRef.current);
+    prevUserRef.current = state.user;
+    if (hadUser || !state.user) return;
+    refresh().catch(() => {});
+    loadGroups().catch(() => {});
+  }, [state.user, refresh, loadGroups]);
+
+  const handleOnboard = async ({ nickname, color }) => {
+    try {
+      const id = getOrCreateUserId();
+      await saveUser({ id, nickname, color });
+      setShowOnboarding(false);
+      notify('欢迎使用美食地图！', null, 2600, 'success');
+    } catch (err) { notify(err.message, null, 2600, 'error'); }
+  };
+
+  const copyRoomCode = async () => {
+    if (!currentGroup) return;
+    await copyText(currentGroup.id);
+    setRoomCopied(true);
+    notify('房间码已复制，发给朋友吧！', null, 2000, 'success');
+  };
+
+  const leaveCurrentRoom = async () => {
+    if (!currentGroup || !user) return;
+    if (!window.confirm(`确认退出「${currentGroup.name}」吗？退出后将看不到该组共享记录。`)) return;
+    try {
+      await api.leaveGroup(currentGroup.id, user.id);
+      setCurrentGroup(null);
+      setViewMode('mine');
+      notify(`已退出「${currentGroup.name}」`, null, 2000, 'success');
+      await loadGroups();
+      await refresh('mine');
+    } catch (err) { notify(err.message, null, 2600, 'error'); }
+  };
+
+  const handleUserUpdate = async ({ nickname, color }) => {
+    if (!user) return;
+    try {
+      await saveUser({ id: user.id, nickname, color });
+      setShowUserProfile(false);
+      notify('个人信息已更新', null, 2600, 'success');
+    } catch (err) { notify(err.message, null, 2600, 'error'); }
+  };
 
   const fetchTrashCount = React.useCallback(async () => {
     try {
-      const data = await api.getTrash();
+      const data = await api.getTrash(user?.id);
       setTrashCount(Array.isArray(data) ? data.length : 0);
     } catch {}
-  }, []);
+  }, [user?.id]);
 
   React.useEffect(() => { fetchTrashCount(); }, []);
 
@@ -69,7 +145,7 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
     if (selectedIds.size === 0) return;
     if (!window.confirm(`确认删除选中的 ${selectedIds.size} 条记录吗？`)) return;
     try {
-      await api.batchDelete([...selectedIds]);
+      await api.batchDelete([...selectedIds], user?.id);
       notify(`已删除 ${selectedIds.size} 条记录`);
       await refresh();
       exitMultiSelect();
@@ -79,17 +155,17 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
 
   const openTrash = () => {
     setShowTrash(true);
-    api.getTrash().then((data) => {
+    api.getTrash(user?.id).then((data) => {
       setTrashEntries(Array.isArray(data) ? data : []);
     }).catch((err) => notify(err.message));
   };
 
   const handleRestore = async (id, name) => {
     try {
-      await api.restoreEntry(id);
+      await api.restoreEntry(id, user?.id);
       notify(`已恢复「${name}」`);
       await refresh();
-      const data = await api.getTrash();
+      const data = await api.getTrash(user?.id);
       setTrashEntries(Array.isArray(data) ? data : []);
       fetchTrashCount();
     } catch (err) { notify(err.message); }
@@ -98,9 +174,9 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
   const handlePermanentDelete = async (id, name) => {
     if (!window.confirm(`永久删除「${name}」后将无法恢复，确认删除？`)) return;
     try {
-      await api.permanentDelete(id);
+      await api.permanentDelete(id, user?.id);
       notify(`已永久删除「${name}」`);
-      const data = await api.getTrash();
+      const data = await api.getTrash(user?.id);
       setTrashEntries(Array.isArray(data) ? data : []);
       fetchTrashCount();
     } catch (err) { notify(err.message); }
@@ -110,7 +186,7 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
     if (trashEntries.length === 0) return;
     if (!window.confirm(`确认清空回收站（共 ${trashEntries.length} 条）吗？此操作不可撤销。`)) return;
     try {
-      const res = await api.clearTrash();
+      const res = await api.clearTrash(user?.id);
       notify(`已清空回收站（${res.deleted} 条）`);
       setTrashEntries([]);
       setTrashCount(0);
@@ -160,12 +236,41 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
         React.createElement(Plus, { size: 18 }),
         ' 新增记录'
       ),
-      !multiSelectMode && React.createElement('button', {
-        className: 'ghost-btn small',
-        onClick: enterMultiSelect
-      },
-        React.createElement(CheckSquare, { size: 14 }),
-        ' 多选'
+      !multiSelectMode && React.createElement('div', { className: 'sidebar-header-actions' },
+        React.createElement('button', {
+          className: 'ghost-btn small',
+          onClick: enterMultiSelect
+        },
+          React.createElement(CheckSquare, { size: 14 }),
+          ' 多选'
+        ),
+        React.createElement('button', {
+          className: 'ghost-btn small',
+          onClick: () => setShowShare(true)
+        },
+          React.createElement(Users, { size: 14 }),
+          ' 共享'
+        )
+      )
+    ),
+
+    currentGroup && !multiSelectMode && React.createElement('div', { className: 'room-status-bar' },
+      React.createElement('span', { className: 'room-status-name' },
+        React.createElement(Users, { size: 13 }),
+        React.createElement('span', null, currentGroup.name)
+      ),
+      React.createElement('button', { className: 'room-status-code', onClick: copyRoomCode, title: '点击复制房间码' },
+        roomCopied ? React.createElement(Check, { size: 12 }) : React.createElement(Copy, { size: 12 }),
+        currentGroup.id
+      ),
+      React.createElement('div', { className: 'room-status-actions' },
+        React.createElement('button', { className: 'room-status-btn', onClick: () => setShowShare(true), title: '成员与房间详情' },
+          '成员'
+        ),
+        React.createElement('button', { className: 'room-status-btn danger', onClick: leaveCurrentRoom, title: '退出房间' },
+          React.createElement(LogOut, { size: 11 }),
+          '退出'
+        )
       )
     ),
 
@@ -180,6 +285,10 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
           ` 全选 (${selectedIds.size}/${entries.length})`
         )
       ),
+      !currentGroup && !multiSelectMode && React.createElement('button', { className: 'invite-guide', onClick: () => setShowShare(true) },
+        React.createElement(Users, { size: 14 }),
+        ' 邀请朋友一起记录美食 →'
+      ),
       state.loading
         ? React.createElement(ListSkeleton, null)
         : entries.length === 0
@@ -193,7 +302,8 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
               isSelected: selectedIds.has(entry.id),
               onToggleSelect: () => toggleSelect(entry.id),
               onClick: () => onFocusEntry(entry.id),
-              onEdit: (e) => { e.stopPropagation(); onEditEntry(entry); }
+              user,
+              inRoom: Boolean(currentGroup)
             })
           )
     ),
@@ -218,12 +328,43 @@ export default function Sidebar({ onNewEntry, onEditEntry, entries, onFocusEntry
       )
     ),
 
+    !multiSelectMode && user && React.createElement('div', { className: 'sidebar-user-bar' },
+      React.createElement('button', { className: 'user-badge-btn', onClick: () => setShowUserProfile(true) },
+        React.createElement('span', { className: 'user-avatar', style: { background: user.color } },
+          (user.nickname || '?').slice(0, 1)
+        ),
+        React.createElement('span', { className: 'user-nickname' }, user.nickname),
+        React.createElement(Settings, { size: 14, className: 'user-edit-icon' })
+      )
+    ),
+
     showTrash && React.createElement(TrashModal, {
       entries: trashEntries,
       onClose: () => setShowTrash(false),
       onRestore: handleRestore,
       onPermanentDelete: handlePermanentDelete,
       onClearAll: handleClearTrash
+    }),
+
+    showUserProfile && user && React.createElement(UserProfileModal, {
+      title: '修改个人信息',
+      showClose: true,
+      submitLabel: '保存',
+      initial: user,
+      onClose: () => setShowUserProfile(false),
+      onSubmit: handleUserUpdate
+    }),
+
+    showOnboarding && !user && React.createElement(UserProfileModal, {
+      title: '欢迎使用美食地图',
+      subtitle: '先设置你的昵称和颜色，你的记录将归属这个身份，之后可随时修改。',
+      showClose: false,
+      submitLabel: '开始使用',
+      onSubmit: handleOnboard
+    }),
+
+    showShare && user && React.createElement(SharePanel, {
+      onClose: () => setShowShare(false)
     })
   );
 }
@@ -251,12 +392,21 @@ function EmptyState({ emoji, message, onAction, actionLabel }) {
   );
 }
 
-function EntryCard({ entry, keyword, multiSelectMode, isSelected, onToggleSelect, onClick, onEdit }) {
+function EntryCard({ entry, keyword, multiSelectMode, isSelected, onToggleSelect, onClick, user, inRoom }) {
   const coverImg = entry.cover_image || (entry.images?.[0]?.image_path);
   const tagColors = (entry.tags || []).slice(0, 3);
+  const isGroupVisible = entry.visibility === 'group';
+  const isOwn = !user || !entry.user_id || entry.user_id === user.id;
+  const ownerColor = entry.user_color;
+  const ownerName = entry.user_nickname;
+  const visBadge = isGroupVisible
+    ? React.createElement('span', { className: 'vis-badge group', title: '共享到房间' },
+        React.createElement(Users, { size: 11 }), '共享')
+    : inRoom && React.createElement('span', { className: 'vis-badge private', title: '仅自己可见' },
+        React.createElement(Lock, { size: 11 }), '私密');
 
   return React.createElement('div', {
-    className: `entry-item${multiSelectMode ? ' multi-select-item' : ''}`,
+    className: `entry-item${multiSelectMode ? ' multi-select-item' : ''}${!isOwn ? ' others-entry' : ''}`,
     onClick: multiSelectMode ? onToggleSelect : onClick
   },
     multiSelectMode && React.createElement('input', {
@@ -274,7 +424,12 @@ function EntryCard({ entry, keyword, multiSelectMode, isSelected, onToggleSelect
     React.createElement('div', { className: 'entry-meta' },
       React.createElement('div', { className: 'entry-title-row' },
         React.createElement('b', null, React.createElement(HighlightText, { text: entry.dish_name, keyword })),
-        entry.is_favorite ? React.createElement(Star, { size: 12, fill: '#FF5A2B', color: '#FF5A2B', className: 'fav-star' }) : null
+        entry.is_favorite ? React.createElement(Star, { size: 12, fill: '#FF5A2B', color: '#FF5A2B', className: 'fav-star' }) : null,
+        visBadge,
+        !isOwn && ownerName && React.createElement('span', { className: 'entry-owner', title: `${ownerName} 的记录` },
+          React.createElement('span', { className: 'owner-dot', style: { background: ownerColor || '#999' } }),
+          ownerName
+        )
       ),
       React.createElement('span', null, React.createElement(HighlightText, { text: entry.restaurant_name, keyword })),
       React.createElement('div', { className: 'entry-tags' },
@@ -292,7 +447,7 @@ function EntryCard({ entry, keyword, multiSelectMode, isSelected, onToggleSelect
 
 function TrashModal({ entries, onClose, onRestore, onPermanentDelete, onClearAll }) {
   return React.createElement('div', { className: 'modal-overlay' },
-    React.createElement('div', { className: 'modal modal-lg' },
+    React.createElement('div', { className: 'modal modal-lg modal-trash' },
       React.createElement('div', { className: 'modal-header' },
         React.createElement('h2', null, '🗑️ 回收站'),
         React.createElement('button', { className: 'close-btn', onClick: onClose }, React.createElement(X, { size: 16 }))

@@ -5,6 +5,14 @@ const longitude = z.coerce.number().finite().min(-180).max(180, '经度范围 -1
 const latitude = z.coerce.number().finite().min(-90).max(90, '纬度范围 -90 ~ 90');
 const optionalText = (max) => z.string().trim().max(max).optional().default('');
 
+const dateStr = z.preprocess(
+  (value) => {
+    if (value === '' || value === null || value === undefined) return null;
+    return value;
+  },
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD').nullable().optional().default(null)
+);
+
 const optionalInt = z.preprocess(
   (value) => {
     if (value === '' || value === null || value === undefined) return null;
@@ -49,9 +57,12 @@ export const entrySchema = z.object({
   notes: optionalText(2000),
   is_favorite: booleanFromStr,
   visit_count: optionalInt,
-  meal_date: optionalText(10),
+  meal_date: dateStr,
   tag_ids: z.string().optional().default(''),
-  deleted_image_ids: z.string().optional().default('')
+  deleted_image_ids: z.string().optional().default(''),
+  user_id: z.string().trim().max(64).optional().default(''),
+  visibility: z.enum(['private', 'group']).optional().default('private'),
+  group_id: z.string().trim().max(10).optional().default('')
 });
 
 export const tagSchema = z.object({
@@ -63,6 +74,29 @@ export const tagSchema = z.object({
 
 export const settingsValueSchema = z.object({
   value: z.string()
+});
+
+export const userSchema = z.object({
+  id: z.string().trim().min(1, '用户ID不能为空').max(64),
+  nickname: z.string().trim().min(1, '昵称不能为空').max(20, '昵称最多 20 个字符'),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, '颜色格式 #RRGGBB')
+});
+
+const userIdSchema = z.string().trim().min(1, '用户ID不能为空').max(64);
+const roomCodeSchema = z.string().trim().min(1).transform((v) => v.toUpperCase());
+
+export const createGroupSchema = z.object({
+  name: z.string().trim().min(1, '组名不能为空').max(30, '组名最多 30 个字符'),
+  creator_id: userIdSchema
+});
+
+export const joinGroupSchema = z.object({
+  code: roomCodeSchema.refine((v) => /^[A-Z0-9]{6}$/.test(v), '房间码为 6 位字母或数字'),
+  user_id: userIdSchema
+});
+
+export const groupMemberSchema = z.object({
+  user_id: userIdSchema
 });
 
 export function validate(schema) {

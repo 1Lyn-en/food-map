@@ -27,12 +27,12 @@ export const api = {
   getEntry(id) { return request(`/entries/${id}`); },
   createEntry(form) { return request('/entries', { method: 'POST', body: form }); },
   updateEntry(id, form) { return request(`/entries/${id}`, { method: 'PUT', body: form }); },
-  deleteEntry(id) { return request(`/entries/${id}`, { method: 'DELETE' }); },
-  batchDelete(ids) { return request('/entries/batch-delete', { method: 'POST', body: { ids } }); },
-  restoreEntry(id) { return request(`/entries/${id}/restore`, { method: 'POST' }); },
-  permanentDelete(id) { return request(`/entries/${id}/permanent`, { method: 'DELETE' }); },
-  getTrash() { return request('/entries/trash'); },
-  clearTrash() { return request('/entries/trash', { method: 'DELETE' }); },
+  deleteEntry(id, userId) { return request(`/entries/${id}`, { method: 'DELETE', body: userId ? { user_id: userId } : undefined }); },
+  batchDelete(ids, userId) { return request('/entries/batch-delete', { method: 'POST', body: userId ? { ids, user_id: userId } : { ids } }); },
+  restoreEntry(id, userId) { return request(`/entries/${id}/restore`, { method: 'POST', body: userId ? { user_id: userId } : undefined }); },
+  permanentDelete(id, userId) { return request(`/entries/${id}/permanent`, { method: 'DELETE', body: userId ? { user_id: userId } : undefined }); },
+  getTrash(userId) { return request(`/entries/trash${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`); },
+  clearTrash(userId) { return request(`/entries/trash${userId ? `?user_id=${encodeURIComponent(userId)}` : ''}`, { method: 'DELETE' }); },
   getEntriesInBounds(params) { return request(`/entries/in-bounds?${new URLSearchParams(params)}`); },
   getStats() { return request('/entries/stats'); },
   reorderImages(id, imageIds, coverImageId) {
@@ -54,6 +54,18 @@ export const api = {
   // Settings
   getSettings() { return request('/settings'); },
   updateSetting(key, value) { return request(`/settings/${key}`, { method: 'PUT', body: { value } }); },
+
+  // Users
+  saveUser(data) { return request('/users', { method: 'POST', body: data }); },
+  getUser(id) { return request(`/users/me?id=${encodeURIComponent(id)}`); },
+
+  // Groups
+  createGroup(data) { return request('/groups', { method: 'POST', body: data }); },
+  joinGroup(data) { return request('/groups/join', { method: 'POST', body: data }); },
+  leaveGroup(id, userId) { return request(`/groups/${id}/leave`, { method: 'POST', body: { user_id: userId } }); },
+  getGroupMembers(id) { return request(`/groups/${id}/members`); },
+  getMyGroups(userId) { return request(`/groups?user_id=${encodeURIComponent(userId)}`); },
+  disbandGroup(id, userId) { return request(`/groups/${id}`, { method: 'DELETE', body: { user_id: userId } }); },
 
   // Health
   health() { return request('/health'); }

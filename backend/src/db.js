@@ -33,6 +33,9 @@ export function initDatabase(database = db) {
     ['visit_count', 'INTEGER DEFAULT 1'],
     ['meal_date', 'TEXT DEFAULT CURRENT_DATE'],
     ['deleted_at', 'TEXT DEFAULT NULL'],
+    ['user_id', "TEXT DEFAULT NULL"],
+    ['group_id', 'TEXT DEFAULT NULL'],
+    ['visibility', "TEXT DEFAULT 'private'"],
   ];
 
   for (const [col, type] of migrations) {
@@ -43,6 +46,13 @@ export function initDatabase(database = db) {
         console.warn(`[migrate] Failed to add column ${col}: ${err.message}`);
       }
     }
+  }
+
+  // Index for user_id (after column migration, safe for existing DBs)
+  try {
+    database.exec('CREATE INDEX IF NOT EXISTS idx_entries_user ON food_entries(user_id)');
+  } catch (err) {
+    console.warn(`[migrate] Failed to create user_id index: ${err.message}`);
   }
 
   // Migrate image_url -> cover_image (copy data if needed)

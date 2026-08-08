@@ -3,7 +3,54 @@ import { api } from './api';
 
 const StoreContext = createContext(null);
 
+const USER_KEYS = { id: 'foodmap_userId', nickname: 'foodmap_nickname', color: 'foodmap_color' };
+const CURRENT_GROUP_KEY = 'foodmap_currentGroup';
+
+function loadUser() {
+  try {
+    const id = localStorage.getItem(USER_KEYS.id);
+    const nickname = localStorage.getItem(USER_KEYS.nickname);
+    const color = localStorage.getItem(USER_KEYS.color);
+    if (id && nickname && color) {
+      return { id: String(id), nickname: String(nickname), color: String(color) };
+    }
+  } catch {}
+  return null;
+}
+
+function loadCurrentGroup() {
+  try {
+    const raw = localStorage.getItem(CURRENT_GROUP_KEY);
+    if (!raw) return null;
+    const group = JSON.parse(raw);
+    if (group && typeof group === 'object' && !Array.isArray(group) && typeof group.id === 'string' && group.id) {
+      return group;
+    }
+  } catch {}
+  return null;
+}
+
+// First-launch identity: persist the id immediately so the identity stays
+// stable even if the user reloads before finishing the onboarding dialog.
+export function getOrCreateUserId() {
+  try {
+    const existing = localStorage.getItem(USER_KEYS.id);
+    if (existing) return String(existing);
+    const id = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `u-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(USER_KEYS.id, id);
+    return id;
+  } catch {
+    return `u-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
 const initialState = {
+  user: loadUser(),
+  groups: [],
+  currentGroup: loadCurrentGroup(),
+  viewMode: 'all',
   entries: [],
   tags: [],
   stats: null,
@@ -30,6 +77,10 @@ function reducer(state, action) {
     case 'SET_FILTERS': return { ...state, filters: action.payload };
     case 'SET_SORT': return { ...state, sortBy: action.payload.sortBy || state.sortBy, sortOrder: action.payload.sortOrder || state.sortOrder };
     case 'SET_HIGHLIGHT': return { ...state, highlightId: action.payload };
+    case 'SET_USER': return { ...state, user: action.payload };
+    case 'SET_GROUPS': return { ...state, groups: action.payload };
+    case 'SET_CURRENT_GROUP': return { ...state, currentGroup: action.payload };
+    case 'SET_VIEW_MODE': return { ...state, viewMode: action.payload };
     default: return state;
   }
 }
@@ -37,9 +88,12 @@ function reducer(state, action) {
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (viewOverride) => {
     const filters = state.filters;
     const params = { sort_by: state.sortBy, sort_order: state.sortOrder };
+    if (state.user) params.user_id = state.user.id;
+    params.view = viewOverride || state.viewMode || 'all';
+    if (state.currentGroup && params.view !== 'mine') params.group_id = state.currentGroup.id;
     if (state.keyword) params.keyword = state.keyword;
     if (filters.tag_ids) params.tag_ids = filters.tag_ids;
     if (filters.min_rating) params.min_rating = filters.min_rating;
@@ -59,7 +113,7 @@ export function StoreProvider({ children }) {
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
-  }, [state.keyword, state.filters, state.sortBy, state.sortOrder]);
+  }, [state.keyword, state.filters, state.sortBy, state.sortOrder, state.user, state.currentGroup, state.viewMode]);
 
   const refreshTags = useCallback(async () => {
     const tags = await api.getTags();
@@ -79,7 +133,41 @@ export function StoreProvider({ children }) {
     return timer;
   }, []);
 
-  const value = { state, dispatch, refresh, refreshTags, refreshStats, notify };
+  const saveUser = useCallback(async ({ id, nickname, color }) => {
+    const res = await api.saveUser({ id, nickname, color });
+    const user = res.user || res;
+    localStorage.setItem(USER_KEYS.id, user.id);
+    localStorage.setItem(USER_KEYS.nickname, user.nickname);
+    localStorage.setItem(USER_KEYS.color, user.color);
+    dispatch({ type: 'SET_USER', payload: user });
+    return res;
+  }, []);
+
+  const loadGroups = useCallback(async () => {
+    const user = state.user;
+    if (!user) return;
+    const res = await api.getMyGroups(user.id);
+    dispatch({ type: 'SET_GROUPS', payload: res.groups || [] });
+    return res.groups || [];
+  }, [state.user]);
+
+  const setCurrentGroup = useCallback((group) => {
+    if (group) {
+      localStorage.setItem(CURRENT_GROUP_KEY, JSON.stringify(group));
+    } else {
+      localStorage.removeItem(CURRENT_GROUP_KEY);
+      dispatch({ type: 'SET_VIEW_MODE', payload: 'all' });
+      dispatch({ type: 'SET_CURRENT_GROUP', payload: null });
+      return;
+    }
+    dispatch({ type: 'SET_CURRENT_GROUP', payload: group });
+  }, []);
+
+  const setViewMode = useCallback((view) => {
+    dispatch({ type: 'SET_VIEW_MODE', payload: view });
+  }, []);
+
+  const value = { state, dispatch, refresh, refreshTags, refreshStats, notify, saveUser, loadGroups, setCurrentGroup, setViewMode };
   return React.createElement(StoreContext.Provider, { value }, children);
 }
 

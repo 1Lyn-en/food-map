@@ -32,6 +32,27 @@ npm run dev
 
 > 未配置 `VITE_AMAP_KEY` 时，页面会显示配置提示横幅，侧栏记录列表与接口仍可正常使用，但地图与选点功能不可用。
 
+## 部署前：高德 Key 域名白名单（必须）
+
+`VITE_AMAP_KEY` 与 `VITE_AMAP_SECURITY_CODE` 均绑定域名。部署到正式环境后，朋友访问的**域名（或 IP）必须加入白名单**，否则地图无法加载：
+
+1. 打开高德开放平台控制台 → 应用管理 → 你的 Key
+2. 「服务平台」选 **Web端(JS API)**
+3. 「域名白名单」填入你实际的访问域名，如 `https://food.example.com`（**不要**只填 `localhost`）
+4. 若启用了「安全密钥」校验，需在 Key 设置里配置对应服务；`frontend/.env` 中的 `VITE_AMAP_KEY` / `VITE_AMAP_SECURITY_CODE` 换成正式环境的 Key
+5. 改完 `.env` 后必须重新 `npm run build`（Key 构建时注入，构建产物里不读取 `.env`）
+
+> 同一 Key 可用于多个域名白名单。内网/IP 部署时浏览器定位需 HTTPS，见上文。
+
+## 单进程生产启动（后端托管前端产物）
+
+构建后由后端单进程对外提供页面 + API + 图片，无需 Vite dev server 与代理：
+
+```bash
+npm run build          # 产出 frontend/dist
+NODE_ENV=production npm start   # 后端启动，默认 http://localhost:3001
+```
+
 ## 目录结构
 
 ```

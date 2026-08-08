@@ -60,7 +60,7 @@ function detectPreset(dateFrom, dateTo) {
 }
 
 export default function Toolbar({ onToggleStats, onToggleData, theme, onToggleTheme }) {
-  const { state, dispatch, refresh, notify } = useStore();
+  const { state, dispatch, refresh, notify, setViewMode } = useStore();
   const [showFilter, setShowFilter] = React.useState(false);
   const [searchValue, setSearchValue] = React.useState(state.keyword);
   const [isFocused, setIsFocused] = React.useState(false);
@@ -163,6 +163,15 @@ export default function Toolbar({ onToggleStats, onToggleData, theme, onToggleTh
         )
       ),
       React.createElement('div', { className: 'toolbar-actions' },
+        state.currentGroup && React.createElement('div', { className: 'view-switch' },
+          [['mine', '我的'], ['all', '全部'], ['shared', '共享']].map(([v, label]) =>
+            React.createElement('button', {
+              key: v,
+              className: `view-switch-btn${state.viewMode === v ? ' active' : ''}`,
+              onClick: () => { setViewMode(v); refresh(v).catch((err) => notify(err.message)); }
+            }, label)
+          )
+        ),
         React.createElement('button', {
           className: `tool-btn${showFilter ? ' active' : ''}`,
           onClick: () => setShowFilter(!showFilter),
