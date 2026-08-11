@@ -456,6 +456,8 @@ function App() {
 
   return React.createElement('div', { className: 'app' },
     React.createElement('div', { id: 'map', className: 'map' }),
+    React.createElement('div', { className: 'map-atmosphere' }),
+    React.createElement('div', { className: 'map-vignette' }),
 
     state.hasKey && amapLoading && !amapReady && React.createElement('div', { className: 'map-overlay' },
       React.createElement(Loader, { size: 32, className: 'spin' }),

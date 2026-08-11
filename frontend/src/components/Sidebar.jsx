@@ -406,7 +406,7 @@ function EntryCard({ entry, keyword, multiSelectMode, isSelected, onToggleSelect
         React.createElement(Lock, { size: 11 }), '私密');
 
   return React.createElement('div', {
-    className: `entry-item${multiSelectMode ? ' multi-select-item' : ''}${!isOwn ? ' others-entry' : ''}`,
+    className: `entry-item${multiSelectMode ? ' multi-select-item' : ''}${!isOwn ? ' others-entry' : ''}${entry.is_favorite ? ' favorite' : ''}`,
     onClick: multiSelectMode ? onToggleSelect : onClick
   },
     multiSelectMode && React.createElement('input', {

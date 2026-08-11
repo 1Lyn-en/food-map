@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:3001',
-      '/uploads': 'http://127.0.0.1:3001'
+      '/api': process.env.FOODMAP_API_TARGET || 'http://127.0.0.1:3001',
+      '/uploads': process.env.FOODMAP_API_TARGET || 'http://127.0.0.1:3001'
     }
   }
 });
