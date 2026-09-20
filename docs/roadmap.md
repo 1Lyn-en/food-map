@@ -2,6 +2,8 @@
 
 # 美食地图 v1.0 + v2.0 实现方案（精简版）
 
+> 历史实现路线与问题记录。部分条目已完成或过时，当前能力与发布缺口请以 [项目完成度评估](project-status.md)、源码和测试为准。
+
 > 基于 PRD v1.0 与现有代码差距分析，**删减复杂低价值功能**，合并相关小功能。
 > v1 个人版 **11 个 Prompt**，v2 多人协作版 **5 个 Prompt**，共 **16 个**。
 
@@ -44,7 +46,7 @@
 让用户上传照片或点一下按钮就能自动填充位置，不用手动搜地址。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 表单组件：frontend/src/components/EntryForm.jsx
 - 地图逻辑在 frontend/src/main.jsx，已加载高德JS API
 - 当前：上传图片不读EXIF，没有"定位我"按钮，地图选点不自动填地址
@@ -81,7 +83,7 @@
 多图上传后可以拖拽排序，指定哪张作为封面。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - EntryForm.jsx 中图片预览是网格布局
 - 后端 entry_images 表已有 sort_order 字段
 - food_entries 表有 cover_image 字段
@@ -119,7 +121,7 @@
 给筛选面板加上时间范围筛选和"只看有图"开关。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - Toolbar.jsx 中已有 FilterPanel 组件
 - 后端 GET /api/entries 已支持 date_from / date_to 参数
 - 现有筛选：标签、评分、价格、用餐类型、收藏
@@ -156,7 +158,7 @@
 工具栏加一个按钮切换标准地图和暗色地图。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 地图初始化在 main.jsx
 - Toolbar.jsx 有工具按钮组
 
@@ -193,7 +195,7 @@
 侧栏支持多选批量删除，删除的记录进回收站可恢复或清空。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - Sidebar.jsx 是记录列表
 - 后端已有 batch-delete 和 restore 接口
 - food_entries 有 deleted_at 字段
@@ -238,7 +240,7 @@
 把统计面板的纯CSS条形图换成 Recharts 专业图表。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - StatsPanel.jsx 当前用CSS画条形图
 - 后端 /api/entries/stats 已返回完整数据
 
@@ -277,7 +279,7 @@
 三个常用快捷键 + 表单文字草稿防丢失。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - main.jsx 有 openForm/closeForm
 - EntryForm.jsx 是表单组件
 
@@ -318,7 +320,7 @@
 搜索框记住历史，搜索结果里关键词高亮。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 搜索框在 Toolbar.jsx
 - Sidebar.jsx 显示记录列表
 - 搜索是回车触发，刷新列表
@@ -356,7 +358,7 @@
 加载时显示骨架屏不白屏，空状态有emoji图标和引导。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - Sidebar.jsx 列表，StatsPanel.jsx 统计
 - 当前空状态只有文字，加载时没有骨架
 
@@ -393,7 +395,7 @@
 一键切换暗色主题，UI和地图一起变暗。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 样式都在 frontend/src/styles.css
 - Prompt 4 已实现地图暗色切换
 - 用CSS变量实现主题切换
@@ -435,7 +437,7 @@
 让地图作为背景透出来，工具栏、侧栏、弹窗等浮在地图上方，呈现通透质感。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 样式文件：frontend/src/styles.css
 - 主要浮层组件：
   - 侧栏 .sidebar（左侧记录列表）
@@ -533,7 +535,7 @@
 不做注册/登录/密码，就是个本地身份。
 
 ## 项目背景
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 前端用 React + useReducer/Context（stores.js）
 - 后端 Express + node:sqlite
 - 当前没有用户概念，所有记录都是"匿名"的
@@ -592,7 +594,7 @@
 
 ## 项目背景
 
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 上一步（v2-1）已实现用户标识
 - 后端已有 db.js 封装
 
@@ -672,7 +674,7 @@
 
 ## 项目背景
 
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - EntryForm.jsx 是新建/编辑表单
 - 后端 server.js 处理记录CRUD
 - v2-1 已有用户标识，v2-2 已有房间
@@ -744,7 +746,7 @@
 
 ## 项目背景
 
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - 地图逻辑在 main.jsx（renderMarkers、openInfo 等）
 - 侧栏在 Sidebar.jsx
 - v2-3 已实现可见性，记录返回数据带 user_id / nickname / color
@@ -754,7 +756,7 @@
 1. Marker 颜色：
    - 自己的记录：用主色 #FF6B35（或当前标签色）
    - 别人的记录：用该用户的 color 字段作为Marker颜色
-   - Marker 内容：自己的用🍴emoji，别人的用昵称首字（白色字在彩色圆上）
+   - Marker 内容：自己的用emoji，别人的用昵称首字（白色字在彩色圆上）
    - 或者：别人的Marker外圈用用户颜色，内圈emoji
 2. 视图切换：
    - 顶部或工具栏加一个分段控件：我的 | 全部 | 共享
@@ -803,7 +805,7 @@
 
 ## 项目背景
 
-- 路径：C:\00_Workspace\projects\food-map
+- 路径：仓库根目录
 - v2-2 已实现房间创建/加入/退出API
 - v2-3/v2-4 已实现共享记录和展示
 

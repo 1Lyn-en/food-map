@@ -574,7 +574,7 @@ export default function EntryForm({ onClose, amapReady, hasKey, keyword, setKeyw
             ),
             addrFocus && suggestions.length > 0 && React.createElement('ul', { className: 'suggest' },
               suggestions.slice(0, 8).map((tip, i) =>
-                React.createElement('li', { key: `${tip.id}-${i}`, onMouseDown: (e) => e.preventDefault(), onClick: () => onPickTip(tip) },
+                React.createElement('li', { key: `${tip.id}-${i}`, onPointerDown: (e) => e.preventDefault(), onClick: () => onPickTip(tip) },
                   React.createElement('b', null, tip.name),
                   React.createElement('span', null, [tip.district, tip.address].filter(Boolean).join(' '))
                 )

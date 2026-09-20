@@ -1709,21 +1709,47 @@ img { display: block; }
 
 /* ====== Responsive ====== */
 @media (max-width: 768px) {
-  .toolbar { right: 16px; }
-  .toolbar-row { flex-wrap: wrap; }
-  .toolbar-actions { flex-wrap: wrap; }
-  .sidebar { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 48vh; border-radius: var(--radius-xl) var(--radius-xl) 0 0; }
+  .toolbar { top: 8px; right: 12px; left: 12px; }
+  .toolbar-row { flex-wrap: wrap; padding: 8px 10px; gap: 8px; }
+  .toolbar-actions { flex-wrap: wrap; gap: 6px; }
+  .tool-btn { padding: 7px 9px; }
+  .sort-select { max-width: 104px; padding: 6px 8px; }
+  .btn-label { display: none; }
+  .sidebar { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 48vh; max-height: 48dvh; border-radius: var(--radius-xl) var(--radius-xl) 0 0; padding-bottom: env(safe-area-inset-bottom); }
   .sidebar-header { flex-direction: row; align-items: center; justify-content: space-between; }
-  .entry-list { flex-direction: row; overflow-y: hidden; overflow-x: auto; -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); }
+  .entry-list { flex-direction: row; overflow-y: hidden; overflow-x: auto; -webkit-mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); mask-image: linear-gradient(to right, transparent 0, #000 24px, #000 calc(100% - 24px), transparent 100%); padding-bottom: 8px; }
   .entry-item { min-width: 240px; flex-shrink: 0; }
   .skeleton-list { flex-direction: row; }
   .skeleton-card { min-width: 240px; flex-shrink: 0; }
   .stats-cards { grid-template-columns: repeat(2, 1fr); }
   .stats-skeleton-cards { grid-template-columns: repeat(2, 1fr); }
-  .banner { top: auto; bottom: calc(48vh + 24px); }
+  .banner { top: auto; bottom: calc(48vh + 24px); bottom: calc(48dvh + 24px); }
   .images-grid { grid-template-columns: repeat(2, 1fr); }
   .form-row { grid-template-columns: 1fr; }
   .info-card { width: 240px; }
+
+  /* 全屏式弹窗（PRD：<768px 表单改全屏） */
+  .modal-overlay { align-items: stretch; }
+  .modal, .modal-lg, .modal-trash, .user-modal, .share-modal {
+    width: 100vw; max-width: 100vw; height: 100%;
+    max-height: 100vh; max-height: 100dvh;
+    border-radius: 0; border: none;
+  }
+  .modal-body { padding-bottom: calc(env(safe-area-inset-bottom) + 18px); }
+  .modal-footer { padding-bottom: calc(env(safe-area-inset-bottom) + 12px); }
+
+  .pick-guide { bottom: calc(48vh + 16px); bottom: calc(48dvh + 16px); left: 12px; right: 12px; transform: none; }
+  .pick-guide-card { justify-content: space-between; flex-wrap: wrap; }
+  .focus-hint { top: 84px; }
+}
+
+/* 触屏设备：hover-only 交互改为常显，避免悬停态残留 */
+@media (hover: none) and (pointer: coarse) {
+  .img-hover-actions { opacity: 1; }
+  .entry-item:hover, .stat-card:hover, .image-preview:hover,
+  .share-room:hover, .entry-thumb { transform: none; }
+  .add-btn:hover, .primary-btn:hover, .ghost-btn:hover, .danger-btn:hover,
+  .empty-btn:hover, .coord-pick-btn:hover, .room-status-share:hover { transform: none; }
 }
 
 /* ====== Backdrop-filter fallback ====== */

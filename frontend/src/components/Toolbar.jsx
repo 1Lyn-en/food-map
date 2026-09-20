@@ -145,7 +145,7 @@ export default function Toolbar({ onToggleStats, onToggleData, theme, onToggleTh
             onBlur: () => setIsFocused(false)
           })
         ),
-        showHistory && React.createElement('div', { className: 'search-history', onMouseDown: (e) => e.preventDefault() },
+        showHistory && React.createElement('div', { className: 'search-history', onPointerDown: (e) => e.preventDefault() },
           searchHistory.map((term) =>
             React.createElement('div', { key: term, className: 'search-history-item' },
               React.createElement('button', { className: 'search-history-term', onClick: () => performSearch(term) },
@@ -178,7 +178,7 @@ export default function Toolbar({ onToggleStats, onToggleData, theme, onToggleTh
           title: '筛选'
         },
           React.createElement(SlidersHorizontal, { size: 16 }),
-          ' 筛选',
+          React.createElement('span', { className: 'btn-label' }, ' 筛选'),
           activeFilterCount > 0 ? React.createElement('span', { className: 'tool-count' }, activeFilterCount) : null
         ),
         React.createElement('div', { className: 'sort-group' },

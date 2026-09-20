@@ -1,10 +1,48 @@
 node_modules/
+**/node_modules/
+
+# Build and test output
 dist/
+**/dist/
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+coverage/
+**/coverage/
+
+# Environment and secrets
 .env
-.env.local
-backend/uploads/
+.env.*
+!.env.example
+!**/.env.example
+
+# Runtime data
 backend/data/
-backend/data/*.db
-backend/data/*.db-*
+backend/uploads/
+backend/backups/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Logs and caches
 *.log
+*.pid
+.cache/
+.vite/
+
+# IDE and OS
+.idea/
+.vscode/
+*.iml
 .DS_Store
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~

@@ -1,104 +1,175 @@
-# 美食地图 Food Map
+# Food Map 美食地图
 
-一个单用户、无账号体系的本地美食记录应用：上传食物照片，录入菜名 / 店名，通过高德地图搜索地址并选点，所有记录以 Marker 形式呈现在地图上。
+一个基于 React、Express 与 SQLite 的自托管美食记录应用。可通过地图保存餐厅位置、图片、评分和标签，并支持本地身份、房间共享、筛选统计、导入导出与 PWA 安装。
 
-- 前端：React 18 + Vite（`frontend/`，端口 5173）
-- 后端：Express 4 + Node 24 内置 `node:sqlite`（`backend/`，端口 3001）
+## 当前状态
 
-## 环境要求
+项目已具备可运行的完整体验，适合本地使用、小范围可信用户共享和继续开发；当前身份机制是浏览器本地 UUID，不是生产级认证，因此不建议直接暴露到不可信公网。
 
-- Node.js v24+（依赖 `node:sqlite`，建议 v24.18.0+）
-- 高德地图 Web JS API Key（可选，配置后可显示地图）
+- 后端集成测试：44 项
+- 前端端到端测试：8 项
+- 生产构建：Vite
+- 运行时：Node.js 22.5+（推荐 Node.js 24 LTS，使用内置 `node:sqlite`）
+
+详细评估见 [docs/project-status.md](docs/project-status.md)，历史需求与设计资料见 [docs/](docs/)。
+
+## 功能概览
+
+- 美食记录新增、编辑、软删除、恢复和永久删除
+- 多图上传、压缩、缩略图、排序与封面设置
+- 高德地图搜索、选点、逆地理编码、定位与 Marker 展示
+- 标签、时间、评分、价格、用餐类型、收藏和图片筛选
+- 统计面板、JSON/CSV 导出、JSON 导入、SQLite 备份下载
+- 本地用户身份、房间码共享、成员列表和记录可见性
+- 亮/暗主题、响应式布局、PWA 与基础离线应用壳
+
+## 技术栈
+
+- 前端：React 18、Vite 8、Recharts、Lucide React、Playwright
+- 后端：Express 4、Node.js `node:sqlite`、Zod、Multer、Sharp
+- 数据：SQLite；上传文件存放在本地目录
 
 ## 快速开始
 
+### 1. 环境要求
+
+- Node.js 22.5+（推荐使用 Node.js 24 LTS）
+- npm 10+
+- 高德地图 Web JS API Key（地图功能需要）
+
+### 2. 安装依赖
+
 ```bash
-# 1. 安装依赖（后端 + 前端）
 npm run install:all
+```
 
-# 2. 配置高德 Key（必须，否则地图无法加载）
-copy frontend\.env.example frontend\.env
-#   编辑 frontend\.env，将 VITE_AMAP_KEY 填入你的高德 Web(JS API) Key
-#   如使用「安全密钥」校验，再填入 VITE_AMAP_SECURITY_CODE
+### 3. 配置环境变量
 
-# 3. 写入演示数据（可选，便于首次体验）
-npm run seed
+Windows PowerShell：
 
-# 4. 一键启动前后端
+```powershell
+Copy-Item frontend/.env.example frontend/.env
+```
+
+macOS / Linux：
+
+```bash
+cp frontend/.env.example frontend/.env
+```
+
+编辑 `frontend/.env`：
+
+```dotenv
+VITE_AMAP_KEY=your_amap_web_js_api_key
+VITE_AMAP_SECURITY_CODE=your_amap_security_code
+```
+
+`frontend/.env` 已被 Git 忽略，请勿提交真实密钥。
+
+### 4. 启动开发环境
+
+```bash
 npm run dev
 ```
 
-启动后访问 http://localhost:5173 ，即可完成「新增 → 搜索落点 → 保存 → 地图查看 → 编辑 → 删除」全流程演示。
+访问 <http://localhost:5173>。未配置地图 Key 时，API 和侧栏仍可使用，但地图与选点不可用。
 
-> 未配置 `VITE_AMAP_KEY` 时，页面会显示配置提示横幅，侧栏记录列表与接口仍可正常使用，但地图与选点功能不可用。
-
-## 部署前：高德 Key 域名白名单（必须）
-
-`VITE_AMAP_KEY` 与 `VITE_AMAP_SECURITY_CODE` 均绑定域名。部署到正式环境后，朋友访问的**域名（或 IP）必须加入白名单**，否则地图无法加载：
-
-1. 打开高德开放平台控制台 → 应用管理 → 你的 Key
-2. 「服务平台」选 **Web端(JS API)**
-3. 「域名白名单」填入你实际的访问域名，如 `https://food.example.com`（**不要**只填 `localhost`）
-4. 若启用了「安全密钥」校验，需在 Key 设置里配置对应服务；`frontend/.env` 中的 `VITE_AMAP_KEY` / `VITE_AMAP_SECURITY_CODE` 换成正式环境的 Key
-5. 改完 `.env` 后必须重新 `npm run build`（Key 构建时注入，构建产物里不读取 `.env`）
-
-> 同一 Key 可用于多个域名白名单。内网/IP 部署时浏览器定位需 HTTPS，见上文。
-
-## 单进程生产启动（后端托管前端产物）
-
-构建后由后端单进程对外提供页面 + API + 图片，无需 Vite dev server 与代理：
+### 5. 可选：写入演示数据
 
 ```bash
-npm run build          # 产出 frontend/dist
-NODE_ENV=production npm start   # 后端启动，默认 http://localhost:3001
+npm run seed
 ```
 
-## 目录结构
+## 验证
 
+```bash
+# 后端集成测试
+npm test
+
+# 前端生产构建
+npm run build
+
+# 首次运行 E2E 前安装浏览器
+npm run e2e:install
+
+# 前端端到端测试
+npm run test:e2e
+
+# 完整检查
+npm run verify
 ```
-food-map/
-├── backend/                # Express 4 + node:sqlite
-│   ├── src/
-│   │   ├── db.js           # node:sqlite 封装（all/get/run/tx）
-│   │   ├── schema.sql      # food_entries 建表
-│   │   ├── validators.js   # zod 校验
-│   │   ├── server.js       # REST API + /uploads 静态服务
-│   │   ├── seed.js         # 演示数据
-│   │   └── png.js          # 生成占位 PNG（seed/测试用）
-│   ├── test/api.test.js    # node --test 集成测试
-│   ├── data/               # food-map.db（gitignore）
-│   └── uploads/            # 上传图片（gitignore）
-└── frontend/               # React 18 + Vite
-    ├── src/main.jsx        # 地图 + 侧栏 + 表单
-    └── src/styles.css
+
+## 生产运行
+
+```bash
+npm run build
+npm start
 ```
 
-## 常用命令
+后端默认监听 <http://localhost:3001>，并在 `frontend/dist` 存在时托管前端页面。
 
-| 命令 | 说明 |
-|---|---|
-| `npm run install:all` | 安装后端与前端依赖 |
-| `npm run dev` | 同时启动后端(3001)与前端(5173) |
-| `npm test` | 运行后端集成测试 |
-| `npm run seed` | 写入 2-3 条演示数据 |
-| `npm run build` | 构建前端产物 |
+生产部署前至少需要：
+
+1. 将正式域名加入高德 Key 的域名白名单，并重新构建前端。
+2. 使用 HTTPS；浏览器定位功能在非 localhost 环境需要安全上下文。
+3. 持久化挂载 `backend/data`、`backend/uploads` 与 `backend/backups`。
+4. 设置 `CORS_ORIGINS`（多个来源用逗号分隔），或保持前后端同源。
+5. 在反向代理层增加访问控制；当前本地 UUID 不能替代认证。
 
 ## 环境变量
 
-| 变量 | 说明 |
-|---|---|
-| `VITE_AMAP_KEY` | 高德 Web(JS API) Key，前端必填 |
-| `VITE_AMAP_SECURITY_CODE` | 高德安全密钥（如启用） |
-| `DB_PATH` | 后端数据库路径（默认 `backend/data/food-map.db`） |
-| `UPLOADS_DIR` | 后端上传目录（默认 `backend/uploads/`） |
-| `PORT` | 后端端口（默认 3001） |
+| 变量 | 作用 | 默认值 |
+| --- | --- | --- |
+| `VITE_AMAP_KEY` | 高德 Web JS API Key | 空 |
+| `VITE_AMAP_SECURITY_CODE` | 高德安全密钥 | 空 |
+| `PORT` | 后端监听端口 | `3001` |
+| `DB_PATH` | SQLite 数据库路径 | `backend/data/food-map.db` |
+| `UPLOADS_DIR` | 上传文件目录 | `backend/uploads` |
+| `BACKUPS_DIR` | 备份目录 | `backend/backups` |
+| `FRONTEND_DIST` | 前端构建产物目录 | `frontend/dist` |
+| `CORS_ORIGINS` | 允许的跨域来源，逗号分隔 | `http://localhost:5173` |
 
-## API 一览
+## 项目结构
 
-- `GET    /api/entries`            记录列表（created_at 倒序）
-- `POST   /api/entries`            multipart：字段 + 可选图片
-- `PUT    /api/entries/:id`        更新（可替换图片）
-- `DELETE /api/entries/:id`        删除记录及图片
-- `GET    /uploads/<file>`         静态图片访问
+```text
+food-map/
+├─ .github/workflows/       # GitHub Actions
+├─ docs/                    # PRD、路线、设计与验证记录
+├─ backend/
+│  ├─ scripts/              # 维护脚本
+│  ├─ src/                  # API、数据库与校验
+│  └─ test/                 # Node 集成测试
+├─ frontend/
+│  ├─ e2e/                  # Playwright 测试
+│  ├─ public/               # PWA 静态资源
+│  └─ src/                  # React 应用
+├─ CONTRIBUTING.md
+├─ SECURITY.md
+└─ package.json             # 根级开发、构建与验证入口
+```
 
-字段：`dish_name`（必填）、`restaurant_name`（必填）、`longitude`/`latitude`（必填，GCJ-02）、`address_text`、`rating`（1-5 可选）、`notes`、`image`（jpg/jpeg/png/webp，≤5MB）。
+运行时目录（数据库、上传、备份、构建和测试产物）不会提交到 Git。
+
+## API 摘要
+
+- `/api/entries`：记录 CRUD、筛选、分页、回收站、统计
+- `/api/tags`：标签 CRUD
+- `/api/users`：本地用户资料
+- `/api/groups`：共享房间与成员
+- `/api/export`、`/api/import`：数据导入导出
+- `/api/backup/download`：SQLite 备份下载
+- `/api/health`：健康检查
+
+## 文档
+
+- [项目完成度评估](docs/project-status.md)
+- [产品需求](docs/product-requirements.md)
+- [实现路线](docs/roadmap.md)
+- [UI 设计方案](docs/ui-design.md)
+- [验证记录](docs/verification.md)
+- [贡献指南](CONTRIBUTING.md)
+- [安全说明](SECURITY.md)
+
+## License
+
+本项目采用 [MIT License](LICENSE)。

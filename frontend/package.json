@@ -2,6 +2,7 @@
   "name": "food-map-frontend",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
@@ -10,14 +11,14 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "^6.0.4",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^3.10.1",
-    "vite": "^8.1.5"
+    "recharts": "^3.10.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1"
+    "@playwright/test": "^1.62.1",
+    "@vitejs/plugin-react": "^6.0.4",
+    "vite": "^8.1.5"
   }
 }
