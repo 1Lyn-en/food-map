@@ -1,6 +1,6 @@
 {
   "name": "food-map",
-  "version": "1.0.0",
+  "version": "0.9.0",
   "private": true,
   "license": "MIT",
   "description": "自托管美食地图：记录餐厅、照片、评分、标签与共享足迹",
@@ -13,7 +13,7 @@
     "url": "git+https://github.com/1Lyn-en/food-map.git"
   },
   "engines": {
-    "node": ">=22.5"
+    "node": ">=22.16"
   },
   "scripts": {
     "install:all": "npm ci && npm ci --prefix backend && npm ci --prefix frontend",
@@ -22,6 +22,7 @@
     "test": "npm test --prefix backend",
     "test:e2e": "npm run test:e2e --prefix frontend",
     "e2e:install": "npm --prefix frontend exec playwright install chromium",
+    "showcase:capture": "npm run showcase:capture --prefix frontend",
     "seed": "npm run seed --prefix backend",
     "build": "npm run build --prefix frontend",
     "verify": "npm test && npm run build && npm run test:e2e"

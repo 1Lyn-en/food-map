@@ -44,7 +44,7 @@ export default function DataPanel({ onClose }) {
       form.append('file', file);
       const result = await api.importData(form);
       notify(result.message || '导入成功');
-      await refresh();
+      await Promise.all([refresh(), refreshTags()]);
     } catch (err) { notify(err.message); }
     finally { setImporting(false); }
   };

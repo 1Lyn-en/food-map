@@ -1,6 +1,6 @@
 # Contributing
 
-感谢参与 Food Map。提交改动前，请先确认本地使用 Node.js 22.5+（推荐 Node.js 24 LTS）。
+感谢参与 Food Map。提交改动前，请先确认本地使用 Node.js 22.16+（推荐 Node.js 24 LTS）。
 
 ## 本地开发
 
@@ -18,6 +18,7 @@ npm run dev
 npm test
 npm run build
 npm run test:e2e
+npm run showcase:capture  # 仅在 UI 展示变化时更新 README 截图
 ```
 
 首次运行 E2E 时先执行：

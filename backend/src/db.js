@@ -81,8 +81,33 @@ export function run(sql, params = []) {
   return Array.isArray(params) ? statement.run(...params) : statement.run(params);
 }
 
+function transactionBusyError() {
+  return Object.assign(new Error('数据库正在处理另一项写入，请稍后重试'), { status: 409 });
+}
+
+export function ensureTransactionIdle() {
+  if (db.isTransaction) throw transactionBusyError();
+}
+
+export function tx(callback) {
+  ensureTransactionIdle();
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = callback();
+    if (result && typeof result.then === 'function') {
+      throw new TypeError('tx requires a synchronous callback');
+    }
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 export async function txAsync(callback) {
-  db.exec('BEGIN');
+  ensureTransactionIdle();
+  db.exec('BEGIN IMMEDIATE');
   try {
     const result = await callback();
     db.exec('COMMIT');

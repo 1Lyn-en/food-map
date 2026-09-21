@@ -1,23 +1,16 @@
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initDatabase, run, tx, all } from './db.js';
+import { initDatabase, run, tx, all, db } from './db.js';
 import { createPlaceholderPng } from './png.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const uploadsDir = process.env.UPLOADS_DIR || join(__dirname, '..', 'uploads');
 const originalsDir = join(uploadsDir, 'originals');
 const thumbnailsDir = join(uploadsDir, 'thumbnails');
-mkdirSync(originalsDir, { recursive: true });
-mkdirSync(thumbnailsDir, { recursive: true });
+// This command never resets user data. Initialization is performed below,
+// under a synchronous write transaction, after checking every application table.
 
-initDatabase();
-
-run('DELETE FROM entry_tags');
-run('DELETE FROM entry_images');
-run('DELETE FROM tags');
-run('DELETE FROM food_entries');
-run('DELETE FROM sqlite_sequence');
 
 const presetTags = [
   { name: '川菜', color: '#FF4444', icon: 'flame' },
@@ -34,19 +27,12 @@ const presetTags = [
   { name: '韩餐', color: '#00BCD4', icon: 'utensils' }
 ];
 
-for (const tag of presetTags) {
-  run('INSERT INTO tags (name, color, icon) VALUES (?, ?, ?)', [tag.name, tag.color, tag.icon]);
-}
-console.log(`已创建 ${presetTags.length} 个标签`);
 
 const placeholder = [
   ['beijing-wangfujing.png', [230, 92, 67]],
   ['shanghai-nanjinglu.png', [255, 122, 69]],
   ['beijing-sanlitun.png', [220, 120, 60]]
 ];
-for (const [file, rgb] of placeholder) {
-  writeFileSync(join(originalsDir, file), createPlaceholderPng(640, 480, rgb));
-}
 
 const entries = [
   {
@@ -93,7 +79,25 @@ const entries = [
   }
 ];
 
-tx(() => {
+const createdFiles = [];
+try {
+  if (process.argv.length > 2) throw new Error('seed 不支持参数，也不支持重置数据库');
+  initDatabase();
+  tx(() => {
+    const tables = ['food_entries', 'entry_images', 'entry_tags', 'tags', 'users', 'groups', 'group_members', 'settings'];
+    if (tables.some((table) => db.prepare(`SELECT 1 FROM ${table} LIMIT 1`).get())) {
+      throw new Error('数据库非空，已停止：seed 不会覆盖已有数据，请指定新的 DB_PATH 和 UPLOADS_DIR');
+    }
+    mkdirSync(originalsDir, { recursive: true });
+    mkdirSync(thumbnailsDir, { recursive: true });
+    for (const [file, rgb] of placeholder) {
+      const path = join(originalsDir, file);
+      writeFileSync(path, createPlaceholderPng(640, 480, rgb), { flag: 'wx' });
+      createdFiles.push(path);
+    }
+    for (const tag of presetTags) {
+      run('INSERT INTO tags (name, color, icon) VALUES (?, ?, ?)', [tag.name, tag.color, tag.icon]);
+    }
   for (const e of entries) {
     const result = run(
       `INSERT INTO food_entries
@@ -116,6 +120,16 @@ tx(() => {
       [entryId, e.cover_image, e.cover_image]
     );
   }
-});
-
-console.log(`Seed completed. 已写入 ${entries.length} 条演示记录，${presetTags.length} 个标签。`);
+  });
+  console.log(`Seed completed. 已写入 ${entries.length} 条演示记录，${presetTags.length} 个标签。`);
+} catch (error) {
+  for (const path of createdFiles) {
+    try { unlinkSync(path); } catch (cleanupError) {
+      if (cleanupError.code !== 'ENOENT') console.error(`清理失败: ${cleanupError.message}`);
+    }
+  }
+  console.error(error.message);
+  process.exitCode = 1;
+} finally {
+  db.close();
+}

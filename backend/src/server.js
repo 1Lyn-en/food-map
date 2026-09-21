@@ -3,10 +3,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import multer from 'multer';
-import { mkdirSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, readFileSync, mkdtempSync } from 'node:fs';
+import { backup } from 'node:sqlite';
 import { join, dirname, extname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { initDatabase, all, get, run, txAsync } from './db.js';
+import { initDatabase, all, get, run, txAsync, db, ensureTransactionIdle } from './db.js';
+import { exportBackup, importBackup } from './backup.js';
+import { permanentlyDelete } from './delete-entries.js';
 import { entrySchema, tagSchema, settingsValueSchema, userSchema, createGroupSchema, joinGroupSchema, groupMemberSchema, validate } from './validators.js';
 import sharp from 'sharp';
 
@@ -21,7 +24,6 @@ const frontendDist = process.env.FRONTEND_DIST || join(__dirname, '..', '..', 'f
 
 const backupsDir = process.env.BACKUPS_DIR || join(__dirname, '..', 'backups');
 mkdirSync(backupsDir, { recursive: true });
-const dbFilePath = process.env.DB_PATH || join(__dirname, '..', 'data', 'food-map.db');
 
 initDatabase();
 
@@ -319,16 +321,7 @@ app.delete('/api/entries/trash', (req, res) => {
   const rows = user_id
     ? all('SELECT * FROM food_entries WHERE deleted_at IS NOT NULL AND user_id = ?', [user_id])
     : all('SELECT * FROM food_entries WHERE deleted_at IS NOT NULL');
-  for (const entry of rows) {
-    const images = all('SELECT * FROM entry_images WHERE entry_id = ?', [entry.id]);
-    for (const img of images) {
-      try { rmSync(join(uploadsDir, img.image_path.replace(/^\/uploads\//, '')), { force: true }); } catch {}
-      try { rmSync(join(uploadsDir, img.thumbnail_path.replace(/^\/uploads\//, '')), { force: true }); } catch {}
-    }
-    run('DELETE FROM entry_tags WHERE entry_id = ?', [entry.id]);
-    run('DELETE FROM entry_images WHERE entry_id = ?', [entry.id]);
-    run('DELETE FROM food_entries WHERE id = ?', [entry.id]);
-  }
+  permanentlyDelete(rows, uploadsDir);
   res.json({ deleted: rows.length });
 });
 
@@ -641,15 +634,7 @@ app.delete('/api/entries/:id/permanent', (req, res) => {
   const ownerCheck = assertOwnsEntry(existing, resolveUserId(req));
   if (!ownerCheck.ok) return res.status(ownerCheck.error).json({ message: ownerCheck.message });
 
-  const images = all('SELECT * FROM entry_images WHERE entry_id = ?', [req.params.id]);
-  for (const img of images) {
-    try { rmSync(join(uploadsDir, img.image_path.replace(/^\//, '')), { force: true }); } catch {}
-    try { rmSync(join(uploadsDir, img.thumbnail_path.replace(/^\//, '')), { force: true }); } catch {}
-  }
-
-  run('DELETE FROM entry_tags WHERE entry_id = ?', [req.params.id]);
-  run('DELETE FROM entry_images WHERE entry_id = ?', [req.params.id]);
-  run('DELETE FROM food_entries WHERE id = ?', [req.params.id]);
+  permanentlyDelete([existing], uploadsDir);
   res.status(204).end();
 });
 
@@ -695,30 +680,7 @@ app.delete('/api/tags/:id', (req, res) => {
 
 // ---- DATA MANAGEMENT ----
 app.get('/api/export', (req, res) => {
-  const rows = all('SELECT * FROM food_entries');
-  const tags = all('SELECT * FROM tags');
-  const entryTags = all('SELECT * FROM entry_tags');
-  const imageRows = all('SELECT * FROM entry_images');
-  const settings = all('SELECT * FROM settings');
-
-  const images = imageRows.map((img) => {
-    const enc = (path) => {
-      if (!path) return null;
-      const rel = path.replace(/^\/uploads\//, '');
-      try { return readFileSync(join(uploadsDir, rel)).toString('base64'); } catch { return null; }
-    };
-    return { ...img, image_base64: enc(img.image_path), thumbnail_base64: enc(img.thumbnail_path) };
-  });
-
-  res.json({
-    version: '1.0',
-    exported_at: new Date().toISOString(),
-    entries: rows,
-    tags,
-    entry_tags: entryTags,
-    images,
-    settings
-  });
+  res.json(exportBackup(uploadsDir));
 });
 
 app.get('/api/export/csv', (req, res) => {
@@ -751,69 +713,8 @@ app.post('/api/import', importUpload.single('file'), asyncHandler(async (req, re
     return res.status(400).json({ message: '文件格式不正确，请选择有效的JSON备份文件' });
   }
 
-  const { entries, tags, entry_tags, settings } = data;
-  if (!Array.isArray(entries)) {
-    return res.status(400).json({ message: '备份文件缺少 entries 字段' });
-  }
-
-  await txAsync(async () => {
-    const tagIdMap = {};
-    if (Array.isArray(tags)) {
-      for (const t of tags) {
-        run('INSERT OR IGNORE INTO tags (name, color, icon, sort_order) VALUES (?, ?, ?, ?)',
-          [t.name, t.color || '#FF6B6B', t.icon || 'tag', t.sort_order || 0]);
-      }
-      const byTagName = all('SELECT id, name FROM tags');
-      for (const t of tags) {
-        const row = byTagName.find((r) => r.name === t.name);
-        if (row) tagIdMap[t.id] = row.id;
-      }
-    }
-
-    const entryIdMap = {};
-    for (const e of entries) {
-      const existing = get('SELECT id FROM food_entries WHERE id = ?', [e.id]);
-      if (existing) {
-        entryIdMap[e.id] = Number(existing.id);
-        continue;
-      }
-      const result = run(
-        `INSERT INTO food_entries
-         (dish_name, restaurant_name, address_text, longitude, latitude,
-          meal_type, price_per_person, cover_image, rating, notes, is_favorite,
-          visit_count, meal_date, created_at, updated_at, user_id, group_id, visibility)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          e.dish_name, e.restaurant_name, e.address_text || '',
-          e.longitude, e.latitude,
-          e.meal_type || null, e.price_per_person || null,
-          e.cover_image || '', e.rating || null, e.notes || '',
-          e.is_favorite || 0, e.visit_count || 1,
-          e.meal_date || null, e.created_at || null, e.updated_at || null,
-          e.user_id || null, e.group_id || null, e.visibility || 'private'
-        ]
-      );
-      entryIdMap[e.id] = Number(result.lastInsertRowid);
-    }
-
-    if (Array.isArray(entry_tags)) {
-      for (const et of entry_tags) {
-        const newEid = entryIdMap[et.entry_id];
-        const newTid = tagIdMap[et.tag_id] ?? et.tag_id;
-        if (!newEid || !newTid) continue;
-        run('INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) VALUES (?, ?)', [newEid, newTid]);
-      }
-    }
-
-    if (Array.isArray(settings)) {
-      for (const s of settings) {
-        run('INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, ?)',
-          [s.key, s.value, s.updated_at || new Date().toISOString()]);
-      }
-    }
-  });
-
-  res.json({ imported_entries: entries.length, message: `成功导入 ${entries.length} 条记录` });
+  const result = await importBackup(data, uploadsDir);
+  res.json(result);
 }));
 
 // ---- SETTINGS ----
@@ -962,17 +863,20 @@ app.delete('/api/groups/:id', validate(groupMemberSchema), (req, res) => {
 });
 
 // ---- BACKUP ----
-app.get('/api/backup/download', (req, res) => {
+app.get('/api/backup/download', asyncHandler(async (req, res) => {
+  ensureTransactionIdle();
+  const tempDir = mkdtempSync(join(backupsDir, '.download-'));
+  const snapshot = join(tempDir, 'food-map.db');
   try {
-    const src = readFileSync(dbFilePath);
+    await backup(db, snapshot, { rate: 128, progress: () => 0 });
+    const src = readFileSync(snapshot);
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Disposition', `attachment; filename="food-map-backup-${new Date().toISOString().slice(0, 10)}.db"`);
     res.send(src);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: '备份文件生成失败' });
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
   }
-});
+}));
 
 // Seed tags if needed
 app.get('/api/seed-tags', (req, res) => {
